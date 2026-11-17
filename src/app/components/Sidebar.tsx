@@ -1,6 +1,6 @@
 import { BookOpen, CloudUpload, FileSearch, Heart, LayoutDashboard, Users, X } from "lucide-react";
 import type { Page } from "../types";
-import { getAccessToken, logout, reviewerName } from "../api/auth";
+import { type AuthStatus, hasStoredReviewer, logout, reviewerName } from "../api/auth";
 
 const NAV: { id: Page; label: string; icon: React.ReactNode; badge?: string }[] = [
   { id: "dashboard", label: "메인 대시보드", icon: <LayoutDashboard size={17} /> },
@@ -11,14 +11,18 @@ const NAV: { id: Page; label: string; icon: React.ReactNode; badge?: string }[] 
 ];
 
 export function Sidebar({
-  page, setPage, open, onClose, pendingCount = 0,
+  page, setPage, open, onClose, pendingCount = 0, auth, onLogin,
 }: {
   page: Page;
   setPage: (p: Page) => void;
   open: boolean;
   onClose: () => void;
   pendingCount?: number;
+  auth: AuthStatus;
+  onLogin: () => void;
 }) {
+  // 접속 코드가 필요한 서버: 코드가 맞아야 로그인 상태. 필요 없는 서버: 이름을 입력해 두었으면 로그인 상태.
+  const loggedIn = auth.required ? auth.valid : hasStoredReviewer();
   return (
     <aside
       className={`fixed lg:static inset-y-0 left-0 z-40 w-60 flex-shrink-0 flex flex-col h-full transform transition-transform duration-200 ease-out ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
@@ -67,14 +71,24 @@ export function Sidebar({
         })}
       </nav>
 
-      {getAccessToken() && (
-        <div className="px-5 py-3 border-t text-xs flex items-center justify-between gap-2" style={{ borderColor: "var(--sidebar-border)" }}>
-          <span className="truncate opacity-70" title="로그인한 검수자">{reviewerName()}</span>
-          <button type="button" onClick={logout} className="opacity-60 hover:opacity-100 underline underline-offset-2 flex-shrink-0">
-            로그아웃
+      <div className="px-5 py-3 border-t text-xs flex items-center justify-between gap-2" style={{ borderColor: "var(--sidebar-border)" }}>
+        {loggedIn ? (
+          <>
+            <span className="truncate opacity-70" title="로그인한 검수자">{reviewerName()}</span>
+            <button type="button" onClick={logout} className="opacity-60 hover:opacity-100 underline underline-offset-2 flex-shrink-0">
+              로그아웃
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={onLogin}
+            className="w-full px-3 py-2 rounded-xl bg-brand text-white text-sm font-medium hover:bg-brand-hover transition-colors"
+          >
+            로그인
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="px-5 py-4 border-t text-[11px] opacity-35" style={{ borderColor: "var(--sidebar-border)" }}>
         v1.2.0 · 2024 성심당

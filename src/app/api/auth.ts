@@ -50,24 +50,42 @@ function writeStored(key: string, value: string | null): void {
   }
 }
 
-/** 앱을 열 때: 접속 코드가 필요한 서버면 저장된 코드가 맞는지 확인한다 */
-export async function checkAuth(): Promise<"ok" | "login"> {
+export interface AuthStatus {
+  /** 서버가 접속 코드를 요구하는가 */
+  required: boolean;
+  /** 지금 이 브라우저가 데이터를 볼 수 있는가 (코드가 필요 없거나, 저장된 코드가 맞음) */
+  valid: boolean;
+}
+
+/**
+ * 로그인 상태 확인. 서버에 연결할 수 없거나 구버전 서버면 '로그인 필요 없음'으로 본다
+ * (서버가 꺼져 있을 때의 안내는 기존 '연결 안 됨' 배너가 맡는다).
+ */
+export async function getAuthStatus(): Promise<AuthStatus> {
+  const open: AuthStatus = { required: false, valid: true };
   try {
     const status = await fetch(`${API_BASE}/api/v1/auth/status`);
-    if (!status.ok) return "ok"; // 구버전 서버·프록시 오류 → 예전처럼 진행
+    if (!status.ok) return open;
     const { required } = (await status.json()) as { required?: boolean };
-    if (!required) return "ok";
+    if (!required) return open;
     const res = await fetch(`${API_BASE}/api/v1/auth/check`, { headers: tokenHeaders() });
-    return res.ok ? "ok" : "login";
+    return { required: true, valid: res.ok };
   } catch {
-    return "ok"; // 서버가 꺼져 있으면 기존 '연결 안 됨' 안내가 처리한다
+    return open;
   }
 }
 
 export type LoginResult = "ok" | "wrong" | "locked" | "offline";
 
-/** 로그인: 접속 코드를 서버에 확인하고, 맞으면 코드와 검수자 이름을 이 브라우저에 저장한다 */
-export async function tryLogin(token: string, name: string): Promise<LoginResult> {
+/**
+ * 로그인. 접속 코드가 필요한 서버면 코드를 서버에 확인하고, 맞으면 코드와 검수자 이름을 이 브라우저에 저장한다.
+ * 코드가 필요 없는 서버면 검수자 이름만 저장한다 (검수 이력에 이름이 남는다).
+ */
+export async function tryLogin(token: string, name: string, required: boolean): Promise<LoginResult> {
+  if (!required) {
+    writeStored("bredred-reviewer-name", name.trim() || null);
+    return "ok";
+  }
   try {
     const res = await fetch(`${API_BASE}/api/v1/auth/check`, { headers: { "X-Access-Token": token.trim() } });
     if (res.ok) {
@@ -81,11 +99,15 @@ export async function tryLogin(token: string, name: string): Promise<LoginResult
   }
 }
 
-/** 로그아웃: 저장된 접속 코드를 지우고 로그인 화면으로 돌려보낸다 */
+/** 로그아웃: 저장된 접속 코드와 이름을 지운다. 로그인 상태가 바뀌었음을 앱에 알린다. */
 export function logout(): void {
   writeStored("bredred-access-token", null);
+  writeStored("bredred-reviewer-name", null);
   notifyAuthRequired();
 }
+
+/** 이 브라우저에 로그인한 이름이 저장돼 있는가 */
+export const hasStoredReviewer = (): boolean => Boolean(readStored("bredred-reviewer-name")?.trim());
 
 /** 검수자 이름을 바꾼다 (검수 상세 상단의 "검수자: ✎") */
 export const setReviewerName = (name: string): void => writeStored("bredred-reviewer-name", name.trim() || null);

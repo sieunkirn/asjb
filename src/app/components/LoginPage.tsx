@@ -1,13 +1,22 @@
 import { useState } from "react";
-import { Heart, Loader2 } from "lucide-react";
+import { ArrowLeft, Heart, Loader2 } from "lucide-react";
 import { reviewerName, tryLogin } from "../api/auth";
 
 /**
- * 로그인 화면 — 서버에 접속 코드(API_ACCESS_TOKEN)가 설정되어 있을 때만 나타난다.
- * 이름은 검수 이력(누가 확정했는지)에 기록되고, 접속 코드는 이 브라우저에만 저장된다.
- * (코드가 화면 파일에 들어 있지 않으므로 공개 서버에서도 보호 수단이 된다)
+ * 로그인 화면 — 홈 화면의 [로그인] 버튼을 눌렀을 때만 나타난다.
+ * 이름은 검수 이력(누가 확정했는지)에 기록된다.
+ * 서버에 접속 코드(API_ACCESS_TOKEN)가 설정되어 있으면(required) 코드도 입력해야 하고,
+ * 코드는 이 브라우저에만 저장된다. 설정되어 있지 않으면 이름만 입력한다.
  */
-export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
+export function LoginPage({
+  required,
+  onLoggedIn,
+  onCancel,
+}: {
+  required: boolean;
+  onLoggedIn: () => void;
+  onCancel: () => void;
+}) {
   const initialName = reviewerName();
   const [name, setName] = useState(initialName === "웹 검수자" ? "" : initialName);
   const [code, setCode] = useState("");
@@ -18,10 +27,10 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
     e.preventDefault();
     if (busy) return;
     if (!name.trim()) return setError("이름을 입력해 주세요. 검수 이력에 기록됩니다.");
-    if (!code.trim()) return setError("접속 코드를 입력해 주세요.");
+    if (required && !code.trim()) return setError("접속 코드를 입력해 주세요.");
     setBusy(true);
     setError(null);
-    const result = await tryLogin(code, name);
+    const result = await tryLogin(code, name, required);
     setBusy(false);
     if (result === "ok") return onLoggedIn();
     setError(
@@ -39,6 +48,14 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
   return (
     <div className="flex min-h-screen bg-background items-center justify-center p-6">
       <form onSubmit={submit} className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-sm p-7">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4"
+        >
+          <ArrowLeft size={13} />홈으로
+        </button>
+
         <div className="flex items-center gap-2.5 mb-6">
           <div className="w-9 h-9 rounded-lg bg-brand flex items-center justify-center shadow-sm">
             <Heart size={16} className="text-white fill-white" />
@@ -55,11 +72,15 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
           autoComplete="name" autoFocus placeholder="예: 김검수"
         />
 
-        <label className="block text-xs font-medium text-muted-foreground mt-4 mb-1.5" htmlFor="login-code">접속 코드</label>
-        <input
-          id="login-code" className={field} type="password" value={code} onChange={e => setCode(e.target.value)}
-          autoComplete="current-password" placeholder="관리자에게 받은 코드"
-        />
+        {required && (
+          <>
+            <label className="block text-xs font-medium text-muted-foreground mt-4 mb-1.5" htmlFor="login-code">접속 코드</label>
+            <input
+              id="login-code" className={field} type="password" value={code} onChange={e => setCode(e.target.value)}
+              autoComplete="current-password" placeholder="관리자에게 받은 코드"
+            />
+          </>
+        )}
 
         {error && <p role="alert" className="text-xs text-red-700 mt-3">{error}</p>}
 
@@ -71,7 +92,9 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
           로그인
         </button>
         <p className="text-[11px] text-muted-foreground mt-4 leading-relaxed">
-          접속 코드는 이 브라우저에만 저장됩니다. 공용 컴퓨터에서는 사용 후 사이드바의 로그아웃을 눌러 주세요.
+          {required
+            ? "접속 코드는 이 브라우저에만 저장됩니다. 공용 컴퓨터에서는 사용 후 사이드바의 로그아웃을 눌러 주세요."
+            : "이 서버는 접속 코드가 필요 없습니다. 입력한 이름은 검수 이력에 기록됩니다."}
         </p>
       </form>
     </div>

@@ -18,7 +18,7 @@ import { filterArticles } from "./lib/articleFilters";
 import { SearchFeedbackBar, type SearchFeedback } from "./components/SearchFeedbackBar";
 import { LoadingState } from "./components/ui/Feedback";
 import { LoginPage } from "./components/LoginPage";
-import { AUTH_REQUIRED_EVENT, checkAuth } from "./api/auth";
+import { AUTH_REQUIRED_EVENT, getAuthStatus, type AuthStatus } from "./api/auth";
 
 export default function App() {
   const { route, navigate } = useHashRoute();
@@ -29,8 +29,11 @@ export default function App() {
   const [selectedEdition, setSelectedEdition] = useState(907);
   const [selectedId, setSelectedId] = useState<string | null>(route.articleId);
   const [initialLoading, setInitialLoading] = useState(true);
-  // 접속 코드가 필요한 서버면 로그인부터 한다 (checking → login | ok)
-  const [authState, setAuthState] = useState<"checking" | "login" | "ok">("checking");
+  // 로그인 상태. 접속 코드가 필요한 서버에서 로그인 전이면 홈 화면은 열되 데이터는 비어 있고,
+  // 사이드바의 [로그인] 버튼으로 로그인 화면(loginOpen)에 들어간다.
+  const [auth, setAuth] = useState<AuthStatus>({ required: false, valid: true });
+  const [loginOpen, setLoginOpen] = useState(false);
+  const authRef = useRef(auth);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
@@ -69,27 +72,48 @@ export default function App() {
     }
   }, []);
 
+  // 로그인 전(접속 코드 필요): 서버 데이터는 건너뛰고 빈 홈 화면을 연다
+  const loadGuestData = useCallback(async () => {
+    try {
+      const [userData, notifList] = await Promise.all([authApi.me(), notificationsApi.list()]);
+      setUser(userData);
+      setNotifications(notifList);
+    } catch {
+      /* 화면은 그대로 연다 */
+    }
+    setArticles([]);
+    setEditions([]);
+    articlesInitializedRef.current = false;
+    setLoadError(null);
+    setInitialLoading(false);
+  }, []);
+
+  useEffect(() => {
+    authRef.current = auth;
+  }, [auth]);
+
   useEffect(() => {
     let cancelled = false;
-    checkAuth().then(result => {
+    getAuthStatus().then(status => {
       if (cancelled) return;
-      if (result === "login") {
-        setAuthState("login");
-        setInitialLoading(false);
-      } else {
-        setAuthState("ok");
-        void loadCoreData();
-      }
+      setAuth(status);
+      void (status.valid ? loadCoreData() : loadGuestData());
     });
     return () => { cancelled = true; };
-  }, [loadCoreData]);
+  }, [loadCoreData, loadGuestData]);
 
-  // 사용 중 접속 코드가 바뀌거나 로그아웃하면(401) 로그인 화면으로
+  // 로그아웃하거나 접속 코드가 바뀌어(401) 로그인 상태가 달라지면 다시 확인한다
   useEffect(() => {
-    const onAuthRequired = () => setAuthState("login");
-    window.addEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
-    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthRequired);
-  }, []);
+    const onAuthChanged = () => {
+      if (authRef.current.required && !authRef.current.valid) return; // 이미 로그인 전 상태
+      void getAuthStatus().then(status => {
+        setAuth(status);
+        if (!status.valid) void loadGuestData();
+      });
+    };
+    window.addEventListener(AUTH_REQUIRED_EVENT, onAuthChanged);
+    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, onAuthChanged);
+  }, [loadGuestData]);
 
   // 호수를 바꾸면 해당 호수의 기사를 다시 불러온다
   useEffect(() => {
@@ -157,15 +181,17 @@ export default function App() {
     [articles, selectedEdition],
   );
 
+  const openLogin = useCallback(() => setLoginOpen(true), []);
+
   const contextValue = useMemo(() => ({
-    user, editions, selectedEdition, setSelectedEdition,
+    user, auth, openLogin, editions, selectedEdition, setSelectedEdition,
     articles, setArticles, notifications,
     refreshArticles, refreshNotifications,
     navigate, openReview, unreadCount,
     globalSearch, setGlobalSearch,
     dashboardFilter, setDashboardFilter,
     reviewTab, setReviewTab,
-  }), [user, editions, selectedEdition, articles, notifications, refreshArticles, refreshNotifications, navigate, openReview, unreadCount, globalSearch, dashboardFilter, reviewTab]);
+  }), [user, auth, openLogin, editions, selectedEdition, articles, notifications, refreshArticles, refreshNotifications, navigate, openReview, unreadCount, globalSearch, dashboardFilter, reviewTab]);
 
   const searchApplicable = page === "dashboard" || page === "upload" || (page === "review" && !selectedId);
 
@@ -187,14 +213,19 @@ export default function App() {
     };
   }, [globalSearch, page, selectedId, articles, selectedEdition]);
 
-  if (authState === "login") {
+  if (loginOpen) {
     return (
       <LoginPage
+        required={auth.required}
+        onCancel={() => setLoginOpen(false)}
         onLoggedIn={() => {
-          setAuthState("ok");
+          setLoginOpen(false);
           setLoadError(null);
           setInitialLoading(true);
-          void loadCoreData();
+          void getAuthStatus().then(status => {
+            setAuth(status);
+            void (status.valid ? loadCoreData() : loadGuestData());
+          });
         }}
       />
     );
@@ -224,7 +255,7 @@ export default function App() {
   return (
     <AppContext.Provider value={contextValue}>
       <div className="flex h-screen bg-background font-['Noto_Sans_KR',sans-serif] overflow-hidden">
-        <Sidebar page={page} setPage={goPage} open={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={pendingCount} />
+        <Sidebar page={page} setPage={goPage} open={sidebarOpen} onClose={() => setSidebarOpen(false)} pendingCount={pendingCount} auth={auth} onLogin={openLogin} />
         {sidebarOpen && <div className="fixed inset-0 bg-black/40 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} aria-hidden />}
 
         <main className="flex-1 flex flex-col overflow-hidden relative min-w-0">

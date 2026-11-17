@@ -67,7 +67,7 @@ export function DashboardPage({
   onOpen: (id: string) => void;
   setPage: (p: Page) => void;
 }) {
-  const { articles, selectedEdition, editions, globalSearch, dashboardFilter, setDashboardFilter, setReviewTab, navigate, refreshArticles } = useApp();
+  const { auth, openLogin, articles, selectedEdition, editions, globalSearch, dashboardFilter, setDashboardFilter, setReviewTab, navigate, refreshArticles } = useApp();
   const [filterStatus, setFilterStatus] = useState<string>(dashboardFilter);
   const [department, setDepartment] = useState("전체");
   const [tablePage, setTablePage] = useState(1);
@@ -173,6 +173,15 @@ export function DashboardPage({
           />
         )}
 
+        {!isSearching && auth.required && !auth.valid && (
+          <div className="mb-6 rounded-2xl border border-brand/30 bg-accent/40 px-4 py-3 text-sm text-foreground flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <p>
+              <b>로그인하면</b> 기사와 점수가 표시됩니다. 접속 코드는 관리자에게 받아 주세요.
+            </p>
+            <Button size="sm" onClick={openLogin} className="flex-shrink-0">로그인</Button>
+          </div>
+        )}
+
         {!isSearching && serverDown && (
           <div className="mb-6">
             <ErrorBanner
@@ -182,7 +191,7 @@ export function DashboardPage({
           </div>
         )}
 
-        {!isSearching && !serverDown && dbDown && (
+        {!isSearching && !serverDown && auth.valid && dbDown && (
           <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <p>
               서버는 켜져 있지만 <b>DB에 연결되지 않아</b> 기사가 표시되지 않습니다.
