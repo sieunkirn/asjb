@@ -1,0 +1,29 @@
+# Render 배포 설계도(Blueprint) — Render에서 "New + → Blueprint"로 이 저장소를
+# 선택하면 아래 설정대로 서버가 만들어진다.
+# 비밀 키(OPENAI_API_KEY, DATABASE_URL)는 sync:false 라서 대시보드에서 직접 입력한다.
+#
+# 보안 메모
+# - 이 서버는 인터넷에 공개된다. 화면의 '백엔드 설정'(API 키 · DB 주소 변경)은
+#   서버 PC 자신(127.0.0.1)에서만 열리도록 막혀 있어 여기서는 기본적으로 잠긴다.
+#   키 · DB 주소는 위 환경변수(Render 대시보드)로만 바꾼다.
+#   원격에서 설정 화면을 꼭 쓰려면 SETTINGS_ADMIN_TOKEN 환경변수를 추가하고,
+#   브라우저에 localStorage 'bredred-admin-token' 으로 같은 값을 넣는다.
+# - 기사 · 점수 데이터는 로그인(접속 코드)이 있어야 볼 수 있다. 코드는 API_ACCESS_TOKEN 환경변수로
+#   서버에만 있고 화면 파일에는 들어 있지 않다. 코드를 바꾸려면 대시보드에서 값을 바꾸면 된다.
+services:
+  - type: web
+    name: bredred-scoring
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      # 접속 코드: 배포할 때 Render가 임의의 긴 값을 자동으로 만든다.
+      # Render 대시보드 → Environment 에서 값을 확인해 직원에게 알려 주면, 화면의 로그인에 입력한다.
+      - key: API_ACCESS_TOKEN
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false

@@ -1,0 +1,1570 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  />
+
+  <meta
+    http-equiv="Cache-Control"
+    content="no-store, no-cache, must-revalidate"
+  />
+
+  <title>성심당 사랑평가 백엔드 테스트</title>
+
+  <style>
+    :root {
+      font-family:
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+      color: #202124;
+      background: #fafafa;
+    }
+
+    body {
+      max-width: 1280px;
+      margin: 36px auto;
+      padding: 0 20px 60px;
+    }
+
+    h1,
+    h2 {
+      margin-bottom: 8px;
+    }
+
+    .muted {
+      color: #666;
+    }
+
+    .panel {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    button,
+    .button-link {
+      display: inline-block;
+      border: 1px solid #888;
+      border-radius: 7px;
+      padding: 9px 15px;
+      background: #fff;
+      color: #222;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 14px;
+    }
+
+    button.primary {
+      background: #222;
+      color: #fff;
+      border-color: #222;
+    }
+
+    button:disabled,
+    .disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    progress {
+      width: 100%;
+      height: 22px;
+    }
+
+    .error {
+      color: #b00020;
+      white-space: pre-wrap;
+    }
+
+    .ok {
+      color: #166534;
+    }
+
+    .review {
+      font-weight: 700;
+      color: #9a5b00;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      text-align: left;
+      vertical-align: top;
+      padding: 9px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    th {
+      background: #f4f4f4;
+    }
+
+    tr.needs-review td {
+      background: #fff9e6;
+    }
+
+    tr.has-error td {
+      background: #fff0f0;
+    }
+
+    code {
+      background: #f3f3f3;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns:
+        repeat(
+          auto-fit,
+          minmax(150px, 1fr)
+        );
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .summary-item {
+      border: 1px solid #e2e2e2;
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .summary-item strong {
+      display: block;
+      font-size: 18px;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>사랑기사 평가 백엔드 테스트</h1>
+
+  <p class="muted">
+    PDF 업로드 → 기사 추출 → 점수화 →
+    로쏘 형식 엑셀 다운로드를 한 화면에서 확인합니다.
+  </p>
+
+  <section class="panel">
+    <h2>1. PDF 업로드</h2>
+
+    <form
+      id="uploadForm"
+      class="actions"
+    >
+      <input
+        id="pdfFile"
+        name="file"
+        type="file"
+        accept="application/pdf,.pdf"
+        required
+      />
+
+      <button
+        id="uploadButton"
+        class="primary"
+        type="submit"
+      >
+        PDF 업로드
+      </button>
+    </form>
+
+    <p id="message"></p>
+  </section>
+
+  <section
+    id="jobPanel"
+    class="panel"
+    hidden
+  >
+    <h2>2. 기사 추출 상태</h2>
+
+    <p>
+      <strong>문서 ID:</strong>
+      <code id="documentId"></code>
+    </p>
+
+    <p>
+      <strong>파일:</strong>
+      <span id="filename"></span>
+    </p>
+
+    <p>
+      <strong>상태:</strong>
+      <span id="status"></span>
+    </p>
+
+    <progress
+      id="progress"
+      value="0"
+      max="100"
+    ></progress>
+
+    <p>
+      <span id="progressText">0%</span>
+      ·
+      <span id="pageText"></span>
+    </p>
+
+    <p>
+      <a
+        id="clippedLink"
+        class="button-link"
+        href="#"
+        target="_blank"
+        rel="noopener"
+      >
+        사랑기사 페이지만 PDF로 보기
+      </a>
+    </p>
+
+    <p
+      id="jobError"
+      class="error"
+    ></p>
+  </section>
+
+  <section
+    id="articlePanel"
+    class="panel"
+    hidden
+  >
+    <h2>3. 추출 기사</h2>
+
+    <p id="articleCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>페이지</th>
+          <th>제목 / 작성자 / 실천자</th>
+          <th>본문</th>
+          <th>추출 품질 확인</th>
+        </tr>
+      </thead>
+
+      <tbody id="articleRows"></tbody>
+    </table>
+  </section>
+
+  <section
+    id="evaluationPanel"
+    class="panel"
+    hidden
+  >
+    <h2>4. 사랑평가 점수화</h2>
+
+    <p class="muted">
+      기업 검토 표시는 평가 후
+      1번 유형, 2번 유형, 기타내용 유형 후보에만 표시됩니다.
+    </p>
+
+    <div class="actions">
+      <button
+        id="evaluateButton"
+        class="primary"
+        type="button"
+        disabled
+      >
+        점수화 시작
+      </button>
+
+      <button
+        id="forceEvaluateButton"
+        type="button"
+        disabled
+      >
+        강제 재평가
+      </button>
+
+      <a
+        id="excelLink"
+        class="button-link disabled"
+        href="#"
+      >
+        점수 결과 엑셀 다운로드
+      </a>
+    </div>
+
+    <p id="evaluationMessage"></p>
+
+    <progress
+      id="evaluationProgress"
+      value="0"
+      max="100"
+    ></progress>
+
+    <p>
+      <span id="evaluationProgressText">
+        0%
+      </span>
+    </p>
+
+    <div
+      id="evaluationSummary"
+      class="summary-grid"
+      hidden
+    >
+      <div class="summary-item">
+        전체 기사
+        <strong id="evalTotal">0</strong>
+      </div>
+
+      <div class="summary-item">
+        완료
+        <strong id="evalDone">0</strong>
+      </div>
+
+      <div class="summary-item">
+        오류
+        <strong id="evalError">0</strong>
+      </div>
+
+      <div class="summary-item">
+        기업 검토 필요
+        <strong id="evalReview">0</strong>
+      </div>
+    </div>
+
+    <div
+      id="evaluationResult"
+      hidden
+    >
+      <h3>점수 산정 결과</h3>
+
+      <table>
+        <thead>
+          <tr>
+            <th>작성자</th>
+            <th>실천자</th>
+            <th>실천자 부서</th>
+            <th>실천 내용 요약</th>
+            <th>실천 내용 점수</th>
+            <th>특이사항</th>
+          </tr>
+        </thead>
+
+        <tbody id="evaluationRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <script>
+    const uploadForm =
+      document.getElementById(
+        "uploadForm"
+      );
+
+    const fileInput =
+      document.getElementById(
+        "pdfFile"
+      );
+
+    const uploadButton =
+      document.getElementById(
+        "uploadButton"
+      );
+
+    const message =
+      document.getElementById(
+        "message"
+      );
+
+    const jobPanel =
+      document.getElementById(
+        "jobPanel"
+      );
+
+    const articlePanel =
+      document.getElementById(
+        "articlePanel"
+      );
+
+    const evaluationPanel =
+      document.getElementById(
+        "evaluationPanel"
+      );
+
+    const evaluateButton =
+      document.getElementById(
+        "evaluateButton"
+      );
+
+    const forceEvaluateButton =
+      document.getElementById(
+        "forceEvaluateButton"
+      );
+
+    const excelLink =
+      document.getElementById(
+        "excelLink"
+      );
+
+    const evaluationMessage =
+      document.getElementById(
+        "evaluationMessage"
+      );
+
+    let currentDocumentId = null;
+    let extractionTimer = null;
+    let evaluationTimer = null;
+
+
+    function errorMessage(
+      data,
+      fallback
+    ) {
+      return (
+        data?.detail?.message
+        || data?.message
+        || fallback
+      );
+    }
+
+
+    async function jsonRequest(
+      url,
+      options
+    ) {
+      const response = await fetch(
+        url,
+        options
+      );
+
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      if (!response.ok) {
+        const error = new Error(
+          errorMessage(
+            data,
+            `요청 실패 (${response.status})`
+          )
+        );
+
+        error.code = (
+          data?.detail?.code
+          || data?.code
+          || "UNKNOWN_ERROR"
+        );
+
+        throw error;
+      }
+
+      return data;
+    }
+
+
+    function addCell(
+      row,
+      text,
+      className = ""
+    ) {
+      const cell =
+        document.createElement(
+          "td"
+        );
+
+      cell.textContent =
+        text ?? "";
+
+      if (className) {
+        cell.className =
+          className;
+      }
+
+      row.appendChild(
+        cell
+      );
+    }
+
+
+    function listText(
+      value
+    ) {
+      if (Array.isArray(value)) {
+        return value
+          .filter(Boolean)
+          .join(", ");
+      }
+
+      return value || "";
+    }
+
+
+    function scoreTypeLabel(
+      value
+    ) {
+      const labels = {
+        TYPE_4:
+          "4번 유형",
+
+        TYPE_5:
+          "5번 유형",
+
+        EXCLUDED:
+          "점수제외",
+
+        REVIEW_TYPE_1:
+          "1번 유형 후보",
+
+        REVIEW_TYPE_2:
+          "2번 유형 후보",
+
+        REVIEW_OTHER:
+          "기타내용 유형 후보",
+      };
+
+      return (
+        labels[value]
+        || value
+        || ""
+      );
+    }
+
+
+    function reviewReasonLabel(
+      value
+    ) {
+      const labels = {
+        review_type_1_candidate:
+          "1번 유형 후보",
+
+        review_type_2_candidate:
+          "2번 유형 후보",
+
+        review_other_candidate:
+          "기타내용 유형 후보",
+      };
+
+      return (
+        labels[value]
+        || value
+      );
+    }
+
+
+    function warningLabel(
+      value
+    ) {
+      const labels = {
+        writer_score_not_automated:
+          "작성자 점수 미자동화",
+
+        duplicate_check_unavailable:
+          "회차 간 중복 확인 필요",
+
+        ambiguous_multiple_practitioners:
+          "여러 실천자의 행동 귀속 불명확",
+
+        evidence_not_found_in_article:
+          "원문 근거 재확인 필요",
+
+        duplicate_practitioner_results:
+          "동일 실천자 결과 중복 가능성",
+      };
+
+      return (
+        labels[value]
+        || value
+      );
+    }
+
+
+    function showJob(
+      job
+    ) {
+      jobPanel.hidden = false;
+
+      document.getElementById(
+        "documentId"
+      ).textContent = (
+        job.document_id
+        || currentDocumentId
+        || ""
+      );
+
+      document.getElementById(
+        "filename"
+      ).textContent = (
+        job.original_filename
+        || ""
+      );
+
+      document.getElementById(
+        "status"
+      ).textContent = (
+        job.status
+        || ""
+      );
+
+      const percent = Number(
+        job.progress_percent
+        || 0
+      );
+
+      document.getElementById(
+        "progress"
+      ).value = percent;
+
+      document.getElementById(
+        "progressText"
+      ).textContent = (
+        `${percent}%`
+      );
+
+      document.getElementById(
+        "pageText"
+      ).textContent = (
+        `${job.processed_pages || 0}`
+        + " / "
+        + `${job.total_love_pages || 0}`
+        + " 페이지"
+      );
+
+      document.getElementById(
+        "jobError"
+      ).textContent = (
+        job.error_message
+        || ""
+      );
+
+      document.getElementById(
+        "clippedLink"
+      ).href = (
+        "/api/v1/documents/"
+        + (
+          job.document_id
+          || currentDocumentId
+        )
+        + "/clipped-pdf"
+      );
+    }
+
+
+    async function loadArticles(
+      documentId
+    ) {
+      const result =
+        await jsonRequest(
+          `/api/v1/documents/${documentId}/articles`
+        );
+
+      const body =
+        document.getElementById(
+          "articleRows"
+        );
+
+      body.replaceChildren();
+
+      document.getElementById(
+        "articleCount"
+      ).textContent = (
+        `${result.article_count}건`
+      );
+
+      for (
+        const article
+        of result.articles
+      ) {
+        const row =
+          document.createElement(
+            "tr"
+          );
+
+        addCell(
+          row,
+          article.source_page
+        );
+
+        addCell(
+          row,
+          (
+            `제목: ${article.title || "-"}\n`
+            + `작성자: ${article.writer || "-"}\n`
+            + `실천자: ${article.target || "-"}`
+          )
+        );
+
+        addCell(
+          row,
+          article.content || ""
+        );
+
+        addCell(
+          row,
+
+          article.needs_review
+            ? (
+                "기술 확인 필요\n"
+                + listText(
+                    article.review_reasons
+                  )
+              )
+            : "이상 없음",
+
+          article.needs_review
+            ? "review"
+            : ""
+        );
+
+        body.appendChild(
+          row
+        );
+      }
+
+      articlePanel.hidden = false;
+      evaluationPanel.hidden = false;
+
+      evaluateButton.disabled =
+        false;
+
+      forceEvaluateButton.disabled =
+        false;
+    }
+
+
+    function updateEvaluationSummary(
+      summary
+    ) {
+      const percent = Number(
+        summary?.progress_percent
+        || 0
+      );
+
+      document.getElementById(
+        "evaluationProgress"
+      ).value = percent;
+
+      document.getElementById(
+        "evaluationProgressText"
+      ).textContent = (
+        `${percent}% · `
+        + `${summary?.status || ""}`
+      );
+
+      document.getElementById(
+        "evalTotal"
+      ).textContent = (
+        summary?.total ?? 0
+      );
+
+      document.getElementById(
+        "evalDone"
+      ).textContent = (
+        summary?.done ?? 0
+      );
+
+      document.getElementById(
+        "evalError"
+      ).textContent = (
+        summary?.error ?? 0
+      );
+
+      document.getElementById(
+        "evalReview"
+      ).textContent = (
+        summary?.needs_review ?? 0
+      );
+
+      document.getElementById(
+        "evaluationSummary"
+      ).hidden = false;
+
+      const downloadReady = (
+        Number(
+          summary?.done || 0
+        ) > 0
+
+        && Number(
+          summary?.pending || 0
+        ) === 0
+
+        && Number(
+          summary?.processing || 0
+        ) === 0
+      );
+
+      excelLink.classList.toggle(
+        "disabled",
+        !downloadReady
+      );
+
+      excelLink.href = (
+        downloadReady
+          ? (
+              "/api/v1/documents/"
+              + currentDocumentId
+              + "/evaluations.xlsx"
+            )
+          : "#"
+      );
+    }
+
+
+    function buildSpecialNote(
+      evaluation,
+      result
+    ) {
+      const notes = [];
+
+      if (
+        evaluation.status
+        === "error"
+      ) {
+        notes.push(
+          "평가 오류: "
+          + (
+            evaluation.error_message
+            || ""
+          )
+        );
+      }
+
+      if (result) {
+        if (
+          result.needs_review
+        ) {
+          notes.push(
+            "기업 검토 필요"
+          );
+
+          const reasons = (
+            result.review_reasons
+            || []
+          )
+            .map(
+              reviewReasonLabel
+            )
+            .join(", ");
+
+          if (reasons) {
+            notes.push(
+              `검토 유형: ${reasons}`
+            );
+          }
+
+          if (
+            result
+              .candidate_score_if_confirmed
+            != null
+          ) {
+            notes.push(
+              "기업 확인 후 후보 점수: "
+              + result
+                  .candidate_score_if_confirmed
+              + "점"
+            );
+          }
+        }
+
+        const type = scoreTypeLabel(
+          result.score_type
+        );
+
+        if (
+          type
+          || result.rule_id
+        ) {
+          notes.push(
+            "점수 유형: "
+            + type
+            + (
+                result.rule_id
+                  ? ` (${result.rule_id})`
+                  : ""
+              )
+          );
+        }
+
+        if (
+          result.matched_rule
+        ) {
+          notes.push(
+            "적용 기준: "
+            + result.matched_rule
+          );
+        }
+
+        if (
+          result.evidence
+        ) {
+          notes.push(
+            "원문 근거: "
+            + result.evidence
+          );
+        }
+
+        if (
+          result.reason
+        ) {
+          notes.push(
+            "판정 근거: "
+            + result.reason
+          );
+        }
+
+        if (
+          result.confidence
+        ) {
+          notes.push(
+            "신뢰도: "
+            + result.confidence
+          );
+        }
+      }
+
+      const warnings = (
+        evaluation.quality_warnings
+        || []
+      )
+        .filter(
+          (value) =>
+            value
+            !== "writer_score_not_automated"
+        )
+        .map(
+          warningLabel
+        )
+        .join(", ");
+
+      if (warnings) {
+        notes.push(
+          `기술 확인사항: ${warnings}`
+        );
+      }
+
+      return notes.join(
+        "\n"
+      );
+    }
+
+
+    function renderEvaluations(
+      evaluations
+    ) {
+      const body =
+        document.getElementById(
+          "evaluationRows"
+        );
+
+      body.replaceChildren();
+
+      for (
+        const evaluation
+        of evaluations
+      ) {
+        const results = (
+          evaluation
+            .practitioner_results
+          || []
+        );
+
+        if (
+          results.length === 0
+        ) {
+          const row =
+            document.createElement(
+              "tr"
+            );
+
+          if (
+            evaluation.status
+            === "error"
+          ) {
+            row.classList.add(
+              "has-error"
+            );
+          }
+
+          addCell(
+            row,
+            evaluation.writer || ""
+          );
+
+          addCell(
+            row,
+            evaluation.target || ""
+          );
+
+          addCell(
+            row,
+            evaluation
+              .target_department
+            || ""
+          );
+
+          addCell(
+            row,
+            (
+              evaluation.rationale
+              || evaluation.title
+              || ""
+            )
+          );
+
+          addCell(
+            row,
+            ""
+          );
+
+          addCell(
+            row,
+            buildSpecialNote(
+              evaluation,
+              null
+            )
+          );
+
+          body.appendChild(
+            row
+          );
+
+          continue;
+        }
+
+        for (
+          const result
+          of results
+        ) {
+          const row =
+            document.createElement(
+              "tr"
+            );
+
+          if (
+            result.needs_review
+          ) {
+            row.classList.add(
+              "needs-review"
+            );
+          }
+
+          const department = (
+            result
+              .practitioner_department
+
+            || result.department
+
+            || evaluation
+              .target_department
+
+            || ""
+          );
+
+          const score = (
+            result.score != null
+              ? `${result.score}점`
+              : "기업 검토 후 결정"
+          );
+
+          addCell(
+            row,
+            evaluation.writer || ""
+          );
+
+          addCell(
+            row,
+            (
+              result.person_name
+              || evaluation.target
+              || ""
+            )
+          );
+
+          addCell(
+            row,
+            department
+          );
+
+          addCell(
+            row,
+            (
+              result
+                .basis_item_or_action
+
+              || evaluation.rationale
+
+              || evaluation.title
+
+              || ""
+            )
+          );
+
+          addCell(
+            row,
+            score,
+
+            result.needs_review
+              ? "review"
+              : ""
+          );
+
+          addCell(
+            row,
+            buildSpecialNote(
+              evaluation,
+              result
+            )
+          );
+
+          body.appendChild(
+            row
+          );
+        }
+      }
+
+      document.getElementById(
+        "evaluationResult"
+      ).hidden = false;
+    }
+
+
+    async function loadEvaluations(
+      documentId
+    ) {
+      const data =
+        await jsonRequest(
+          `/api/v1/documents/${documentId}/evaluations`
+        );
+
+      updateEvaluationSummary(
+        data.summary
+      );
+
+      renderEvaluations(
+        data.evaluations || []
+      );
+
+      return data.summary;
+    }
+
+
+    async function pollExtraction(
+      documentId
+    ) {
+      try {
+        const job =
+          await jsonRequest(
+            `/api/v1/documents/${documentId}`
+          );
+
+        showJob(
+          job
+        );
+
+        if (
+          job.status === "completed"
+          || job.status
+            === "completed_with_errors"
+        ) {
+          if (
+            extractionTimer
+          ) {
+            clearInterval(
+              extractionTimer
+            );
+
+            extractionTimer =
+              null;
+          }
+
+          await loadArticles(
+            documentId
+          );
+
+          await loadEvaluations(
+            documentId
+          );
+        }
+
+        if (
+          job.status === "failed"
+        ) {
+          if (
+            extractionTimer
+          ) {
+            clearInterval(
+              extractionTimer
+            );
+
+            extractionTimer =
+              null;
+          }
+        }
+
+      } catch (error) {
+        if (
+          extractionTimer
+        ) {
+          clearInterval(
+            extractionTimer
+          );
+
+          extractionTimer =
+            null;
+        }
+
+        document.getElementById(
+          "jobError"
+        ).textContent = (
+          error.message
+        );
+      }
+    }
+
+
+    async function pollEvaluation(
+      documentId
+    ) {
+      try {
+        const summary =
+          await loadEvaluations(
+            documentId
+          );
+
+        if (
+          summary.status
+            === "completed"
+
+          || summary.status
+            === "completed_with_errors"
+        ) {
+          if (
+            evaluationTimer
+          ) {
+            clearInterval(
+              evaluationTimer
+            );
+
+            evaluationTimer =
+              null;
+          }
+
+          evaluateButton.disabled =
+            false;
+
+          forceEvaluateButton.disabled =
+            false;
+
+          evaluationMessage.textContent =
+            "점수화가 완료되었습니다.";
+
+          evaluationMessage.className =
+            "ok";
+        }
+
+      } catch (error) {
+        if (
+          evaluationTimer
+        ) {
+          clearInterval(
+            evaluationTimer
+          );
+
+          evaluationTimer =
+            null;
+        }
+
+        evaluateButton.disabled =
+          false;
+
+        forceEvaluateButton.disabled =
+          false;
+
+        evaluationMessage.textContent =
+          error.message;
+
+        evaluationMessage.className =
+          "error";
+      }
+    }
+
+
+    async function startEvaluation(
+      force
+    ) {
+      if (
+        !currentDocumentId
+      ) {
+        return;
+      }
+
+      if (
+        evaluationTimer
+      ) {
+        clearInterval(
+          evaluationTimer
+        );
+
+        evaluationTimer =
+          null;
+      }
+
+      evaluateButton.disabled =
+        true;
+
+      forceEvaluateButton.disabled =
+        true;
+
+      evaluationMessage.textContent = (
+        force
+          ? "재평가를 시작합니다..."
+          : "점수화를 시작합니다..."
+      );
+
+      evaluationMessage.className =
+        "";
+
+      try {
+        const query = (
+          force
+            ? "?force=true"
+            : ""
+        );
+
+        await jsonRequest(
+          (
+            "/api/v1/documents/"
+            + currentDocumentId
+            + "/evaluate"
+            + query
+          ),
+
+          {
+            method: "POST",
+          }
+        );
+
+        evaluationMessage.textContent =
+          "점수화 진행 중...";
+
+        evaluationTimer =
+          setInterval(
+            () =>
+              pollEvaluation(
+                currentDocumentId
+              ),
+
+            2000
+          );
+
+        await pollEvaluation(
+          currentDocumentId
+        );
+
+      } catch (error) {
+        if (
+          error.code
+          === "EVALUATION_ALREADY_COMPLETED"
+        ) {
+          evaluationMessage.textContent =
+            "이미 완료된 평가 결과를 불러왔습니다.";
+
+          evaluationMessage.className =
+            "ok";
+
+          await loadEvaluations(
+            currentDocumentId
+          );
+
+        } else if (
+          error.code
+          === "EVALUATION_ALREADY_RUNNING"
+        ) {
+          evaluationMessage.textContent =
+            "이미 진행 중인 평가를 조회합니다.";
+
+          evaluationTimer =
+            setInterval(
+              () =>
+                pollEvaluation(
+                  currentDocumentId
+                ),
+
+              2000
+            );
+
+          await pollEvaluation(
+            currentDocumentId
+          );
+
+        } else {
+          evaluationMessage.textContent =
+            error.message;
+
+          evaluationMessage.className =
+            "error";
+        }
+
+        evaluateButton.disabled =
+          false;
+
+        forceEvaluateButton.disabled =
+          false;
+      }
+    }
+
+
+    uploadForm.addEventListener(
+      "submit",
+
+      async (event) => {
+        event.preventDefault();
+
+        const file =
+          fileInput.files[0];
+
+        if (!file) {
+          return;
+        }
+
+        if (
+          extractionTimer
+        ) {
+          clearInterval(
+            extractionTimer
+          );
+        }
+
+        if (
+          evaluationTimer
+        ) {
+          clearInterval(
+            evaluationTimer
+          );
+        }
+
+        currentDocumentId = null;
+
+        articlePanel.hidden =
+          true;
+
+        evaluationPanel.hidden =
+          true;
+
+        document.getElementById(
+          "evaluationResult"
+        ).hidden = true;
+
+        message.textContent =
+          "업로드 및 사랑기사 페이지 탐색 중...";
+
+        message.className =
+          "";
+
+        uploadButton.disabled =
+          true;
+
+        const formData =
+          new FormData();
+
+        formData.append(
+          "file",
+          file
+        );
+
+        try {
+          const job =
+            await jsonRequest(
+              "/api/v1/documents",
+
+              {
+                method: "POST",
+                body: formData,
+              }
+            );
+
+          currentDocumentId =
+            job.document_id;
+
+          message.textContent =
+            "업로드 완료. 기사 추출을 시작했습니다.";
+
+          message.className =
+            "ok";
+
+          showJob(
+            job
+          );
+
+          extractionTimer =
+            setInterval(
+              () =>
+                pollExtraction(
+                  currentDocumentId
+                ),
+
+              2000
+            );
+
+          await pollExtraction(
+            currentDocumentId
+          );
+
+        } catch (error) {
+          message.textContent =
+            error.message;
+
+          message.className =
+            "error";
+
+        } finally {
+          uploadButton.disabled =
+            false;
+        }
+      }
+    );
+
+
+    evaluateButton.addEventListener(
+      "click",
+
+      () =>
+        startEvaluation(
+          false
+        )
+    );
+
+
+    forceEvaluateButton.addEventListener(
+      "click",
+
+      () =>
+        startEvaluation(
+          true
+        )
+    );
+  </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+
+output/
+input/
+
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/clipped/*
+!storage/clipped/.gitkeep
+
+*.log
