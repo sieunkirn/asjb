@@ -149,7 +149,7 @@ uff format --check .   # 백엔드 스타일 · 미사용 코드 점검 (ruff.to
 - **작업 규칙: main 에 직접 푸시하지 않습니다.** 브랜치를 만들어 PR로 올리고 팀 확인 후 병합합니다 ([docs/git-guide.md](docs/git-guide.md)).
 - 프론트 코드 구조·파일별 설명은 [docs/dev-guide.md](docs/dev-guide.md) (이전 README), 연동 구조는 [docs/scoring-integration.md](docs/scoring-integration.md), API 명세는 [docs/api-spec.md](docs/api-spec.md) 참고.
 - 보안 옵션
-  - **로그인(접속 코드)**: `backend/.env` 에 `API_ACCESS_TOKEN` 을 설정하면 화면이 **로그인 화면(이름 + 접속 코드)**부터 열립니다. 이름은 검수 이력에 기록되고, 코드는 그 브라우저에만 저장됩니다(사이드바 하단 로그아웃으로 삭제). 코드를 5분 안에 10번 틀리면 잠시 차단됩니다. 비워 두면 예전처럼 로그인 없이 열립니다. Render 배포(`render.yaml`)는 코드를 자동 생성하며, 값은 Render 대시보드 Environment 에서 확인합니다.
+  - **로그인(접속 코드)**: `backend/.env` 에 `API_ACCESS_TOKEN` 을 설정하면 화면이 **로그인 화면(이름 + 접속 코드)**부터 열립니다. 이름은 검수 이력에 기록되고, 코드는 그 브라우저에만 저장됩니다(사이드바 하단 로그아웃으로 삭제). 코드를 5분 안에 10번 틀리면 잠시 차단됩니다. 비워 두면 예전처럼 로그인 없이 열립니다. Render 배포(`render.yaml`)는 테스트 단계라 코드를 만들지 않아 로그인 없이 열립니다. 켜려면 Render 대시보드 Environment 에 `API_ACCESS_TOKEN` 을 직접 추가하세요(이미 있는 서비스에서 끄려면 삭제).
   - 프론트 `.env` 의 `VITE_API_ACCESS_TOKEN` 도 되지만, `VITE_` 값은 화면 코드에 그대로 들어가 **누구나 볼 수 있으므로** 쓰지 않는 것이 좋습니다.
   - 화면의 **백엔드 설정**(OpenAI 키 · DB 주소 변경)은 기본적으로 **서버를 실행 중인 PC 자신**에서만 열립니다. 클라우드 등 원격 서버에서 쓰려면 서버에 `SETTINGS_ADMIN_TOKEN` 을 설정하고, 브라우저 localStorage `bredred-admin-token` 에 같은 값을 넣으세요.
   - **사람 손을 덜 타게 하는 옵션**(`backend/.env`, 둘 다 기본은 꺼짐):
